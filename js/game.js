@@ -5,6 +5,14 @@ let gameScene = new Phaser.Scene('Game');
 gameScene.init = function() {
   // player speed
   this.playerSpeed = 3;
+ 
+  // enemy speed
+  this.enemyMinSpeed = 2;
+  this.enemyMaxSpeed = 4.5;
+ 
+  // boundaries
+  this.enemyMinY = 80;
+  this.enemyMaxY = 280;
 };
  
 // load assets
@@ -33,6 +41,33 @@ gameScene.create = function() {
   // goal
   this.goal = this.add.sprite(this.sys.game.config.width - 80, this.sys.game.config.height / 2, 'goal');
   this.goal.setScale(0.6);
+ 
+  // enemy group
+  this.enemies = this.add.group({
+    key: 'enemy',
+    repeat: 4,
+    setXY: {
+      x: 90,
+      y: 100,
+      stepX: 100,
+      stepY: 20,
+    }
+  });
+ 
+  // setting scale to all group elements
+  Phaser.Actions.ScaleXY(this.enemies.getChildren(), -0.4, -0.4);
+ 
+  // set flipX, and speed
+  Phaser.Actions.Call(this.enemies.getChildren(), function(enemy){
+    // flip enemy
+    enemy.flipX = true;
+ 
+    // set speed
+    let dir = Math.random() < 0.5 ? 1 : -1;
+    let speed = this.enemyMinSpeed + Math.random() * (this.enemyMaxSpeed - this.enemyMinSpeed);
+    enemy.speed = dir * speed;
+ 
+  }, this);
 };
  
 // this is called up to 60 times per second
@@ -52,12 +87,59 @@ gameScene.update = function(){
     console.log('reached goal!');
  
     // restart the Scene
-    this.scene.restart();
- 
-    // make sure we leave this method
-    return;
+    return this.gameOver();
+  
   }
  
+  // get enemies
+  let enemies = this.enemies.getChildren();
+  let numEnemies = enemies.length;
+ 
+  for(let i = 0; i< numEnemies; i++) {
+ 
+    // enemy movement
+    enemies[i].y += enemies[i].speed;
+ 
+    // check we haven't passed min or max Y
+    let conditionUp = enemies[i].speed < 0 && enemies[i].y <= this.enemyMinY;
+    let conditionDown = enemies[i].speed > 0 && enemies[i].y >= this.enemyMaxY;
+ 
+    // if we passed the upper or lower limit, reverse
+    if(conditionUp || conditionDown) {
+      enemies[i].speed *= -1;
+    }
+ 
+    // check enemy overlap
+    let enemyRect = enemies[i].getBounds();
+ 
+    if(Phaser.Geom.Intersects.RectangleToRectangle(playerRect, enemyRect)) {
+      console.log('Game over!');
+ 
+      // restart the Scene
+      return this.gameOver();
+    }
+  }
+};
+gameScene.gameOver = function() {
+ 
+  // initiated game over sequence
+  this.isTerminating = true;
+ 
+  // shake camera
+  this.cameras.main.shake(500);
+ 
+  // listen for event completion
+  this.cameras.main.on('camerashakecomplete', function(camera, effect){
+ 
+    // fade out
+    this.cameras.main.fade(500);
+  }, this);
+ 
+  this.cameras.main.on('camerafadeoutcomplete', function(camera, effect){
+    // restart the Scene
+    this.scene.restart();
+  }, this);
+
 };
  
 // set the configuration of the game
